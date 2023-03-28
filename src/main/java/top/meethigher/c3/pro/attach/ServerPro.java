@@ -32,7 +32,8 @@ public class ServerPro {
                 System.out.println(StandardCharsets.UTF_8.decode(byteBuffer));
             }
         }
-        //移动到未读的位置。执行到position、limit相等时，就应该扩容。
+        //移动到未读的位置，如果都没读，缓冲区就是满的，就不能读入了。这也是能够扩容的前提。
+        //执行到position、limit相等时，就应该扩容。
         buffer.compact();
     }
 
@@ -55,7 +56,7 @@ public class ServerPro {
                     SocketChannel sc = channel.accept();
                     sc.configureBlocking(false);
                     //第三个参数，表示注册的附件。每个channel独有的附件。
-                    SelectionKey scKey = sc.register(selector, 0, ByteBuffer.allocate(10));
+                    SelectionKey scKey = sc.register(selector, 0, ByteBuffer.allocate(5));
                     scKey.interestOps(SelectionKey.OP_READ);
                 } else if (key.isReadable()) {
                     try {
@@ -65,19 +66,16 @@ public class ServerPro {
                         if (read == -1) {//正常断开
                             key.cancel();
                         } else {
-//                            byteBuffer.flip();
-//                            System.out.println(byteBuffer.limit());
-//                            System.out.println(StandardCharsets.UTF_8.decode(byteBuffer));
                             handle(byteBuffer);
-                            log.info("执行");
-//                            //执行到position、limit相等时，就应该扩容。
-//                            if (byteBuffer.position() == byteBuffer.limit()) {
-//                                log.info("扩容");
-//                                ByteBuffer newByteBuffer = ByteBuffer.allocate(byteBuffer.capacity() * 2);
-//                                byteBuffer.flip();
-//                                newByteBuffer.put(byteBuffer);
-//                                key.attach(newByteBuffer);
-//                            }
+                            //执行到position、limit相等时，就应该扩容。
+                            if (byteBuffer.position() == byteBuffer.limit()) {
+                                ByteBuffer newByteBuffer = ByteBuffer.allocate(byteBuffer.capacity() + 1);
+                                log.info("缓冲区扩容到{}", newByteBuffer.capacity());
+                                byteBuffer.flip();
+                                //将旧的数据copy到新的buffer
+                                newByteBuffer.put(byteBuffer);
+                                key.attach(newByteBuffer);
+                            }
                         }
                     } catch (IOException e) {//异常断开
                         e.printStackTrace();
